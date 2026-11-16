@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'admin/admin_common.dart';
-import 'admin/admin_shell.dart';
+import 'core/router/app_router.dart';
+import 'core/theme/app_theme.dart';
 
 void main() => runApp(const PerpustakaanApp());
 
@@ -9,13 +9,11 @@ class PerpustakaanApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Perpustakaan',
+    return MaterialApp.router(
+      title: 'Perpustakaan Kampus',
       debugShowCheckedModeBanner: false,
-      theme: adminTheme(),
-      // Sementara langsung ke modul admin. Setelah login dari tim siap,
-      // arahkan ke AdminShell(onLogout: ...) dari alur login.
-      home: const AdminShell(),
+      theme: AppTheme.light,
+      routerConfig: appRouter,
     );
   }
 }
