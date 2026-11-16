@@ -27,6 +27,8 @@ Route::get('/items/{id}', [BookController::class, 'show']);
 
 Route::post('/loans', [LoanController::class, 'store'])->middleware('auth:sanctum');
 Route::get('/loans/me', [LoanController::class, 'myLoans'])->middleware('auth:sanctum');
+Route::get('/my-loans', [LoanController::class, 'myLoans'])->middleware('auth:sanctum');
+Route::get('/my-loans/{id}', [LoanController::class, 'show'])->middleware('auth:sanctum');
 Route::patch('/loans/{id}/status', [LoanController::class, 'updateStatus'])->middleware('auth:sanctum');
 Route::delete('/my-loans/{id}', [LoanController::class, 'destroy'])->middleware('auth:sanctum');
 

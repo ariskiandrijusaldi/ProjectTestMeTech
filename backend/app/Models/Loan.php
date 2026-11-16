@@ -17,6 +17,8 @@ class Loan extends Model
         'loan_code',
         'quantity',
         'status',
+        'requested_at',
+        'approved_at',
         'loan_date',
         'due_date',
         'returned_at',
@@ -27,6 +29,7 @@ class Loan extends Model
 
     protected $casts = [
         'quantity' => 'integer',
+        'requested_at' => 'datetime',
         'loan_date' => 'date',
         'due_date' => 'date',
         'returned_at' => 'datetime',

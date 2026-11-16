@@ -21,7 +21,7 @@ class BookResource extends JsonResource
             'publisher'       => $this->publisher,
             'year'            => $this->year,
             'synopsis'        => $this->synopsis,
-            'cover_url'       => $this->cover ? asset('storage/' . $this->cover) : null,
+            'cover_url'       => $this->image_url,
             'rack_location'   => $this->rack_location,
             'stock_total'     => $this->stock_total,
             'stock_available' => $this->stock_available,

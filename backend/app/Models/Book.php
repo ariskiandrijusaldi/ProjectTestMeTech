@@ -58,4 +58,16 @@ class Book extends Model
     {
         return (int) $this->stock_available > 0;
     }
+
+    public function scopeSearch($query, ?string $term)
+    {
+        return $query->when($term, function ($q, $t) {
+            $q->where(function ($sq) use ($t) {
+                $sq->where('title', 'like', "%{$t}%")
+                    ->orWhere('author', 'like', "%{$t}%")
+                    ->orWhere('isbn', 'like', "%{$t}%")
+                    ->orWhere('publisher', 'like', "%{$t}%");
+            });
+        });
+    }
 }

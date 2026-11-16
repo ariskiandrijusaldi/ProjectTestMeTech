@@ -415,4 +415,41 @@ class LibraryFlowTest extends TestCase
             ->assertStatus(200);
         $this->assertSame(0, \Laravel\Sanctum\PersonalAccessToken::where('tokenable_id', $this->admin->id)->count());
     }
+
+    // ---------- BOOKS SEARCH & PAGINATION ----------
+
+    public function test_books_pagination_and_search(): void
+    {
+        $response = $this->getJson('/api/books?search=Buku&per_page=5');
+        $response->assertStatus(200);
+        $this->assertNotEmpty($response->json('data'));
+        $this->assertNotNull($response->json('meta'));
+    }
+
+    public function test_admin_books_search(): void
+    {
+        Sanctum::actingAs($this->admin);
+        $response = $this->getJson('/api/admin/books?search=Buku');
+        $response->assertStatus(200);
+        $this->assertNotEmpty($response->json('data'));
+    }
+
+    public function test_my_loan_detail(): void
+    {
+        $loan = Loan::create([
+            'user_id' => $this->mahasiswa->id,
+            'book_id' => $this->book->id,
+            'code' => 'PJ25010199',
+            'loan_code' => 'PJ25010199',
+            'quantity' => 1,
+            'status' => 'pending',
+            'requested_at' => Carbon::now(),
+            'loan_date' => Carbon::today(),
+        ]);
+
+        Sanctum::actingAs($this->mahasiswa);
+        $res = $this->getJson('/api/my-loans/' . $loan->id);
+        $res->assertStatus(200);
+        $this->assertSame($loan->id, $res->json('data.id'));
+    }
 }

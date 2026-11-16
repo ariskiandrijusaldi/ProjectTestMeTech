@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoanStoreRequest;
+use App\Http\Resources\LoanResource;
 use App\Models\Loan;
 use App\Services\LoanService;
 use Illuminate\Http\JsonResponse;
@@ -25,7 +26,7 @@ class LoanController extends Controller
         return response()->json([
             'status' => $result['ok'] ? 'success' : 'error',
             'message' => $result['message'],
-            'data' => $result['loan'] ?? null,
+            'data' => $result['loan'] ? new LoanResource($result['loan']) : null,
         ], $result['code']);
     }
 
@@ -34,25 +35,48 @@ class LoanController extends Controller
         $user = $request->user();
         $tab = strtolower($request->query('tab') ?? $request->query('status') ?? 'all');
 
-        $query = Loan::with('book.category')
+        $query = Loan::with(['book.category', 'approver'])
             ->where('user_id', $user->id)
-            ->latest();
+            ->latest('requested_at');
 
         if (in_array($tab, ['active', 'aktif'])) {
             $query->whereIn('status', ['pending', 'approved']);
         } elseif (in_array($tab, ['history', 'riwayat'])) {
             $query->whereIn('status', ['rejected', 'returned']);
-        } elseif ($request->filled('status') && ! in_array($request->status, ['all', 'Semua'])) {
+        } elseif ($request->filled('status') && ! in_array($request->status, ['all', 'Semua'], true)) {
             $query->where('status', $request->status);
         }
 
         $loans = $query->paginate($request->integer('per_page', 10));
+        $loans->through(fn ($item) => new LoanResource($item));
 
         return response()->json([
             'status' => 'success',
             'tab' => $tab,
             'data' => $loans,
         ], 200);
+    }
+
+    public function show(Request $request, $id)
+    {
+        $loan = Loan::with(['book.category', 'approver', 'user'])->find($id);
+
+        if (! $loan) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Peminjaman tidak ditemukan.',
+            ], 404);
+        }
+
+        if ($loan->user_id !== $request->user()->id && ! $request->user()->isAdmin()) {
+            return response()->json([
+                'status' => 'error',
+                'message' => 'Bukan peminjaman Anda.',
+            ], 403);
+        }
+
+        return (new LoanResource($loan))
+            ->additional(['message' => 'Detail peminjaman ditemukan.']);
     }
 
     public function updateStatus(Request $request, $id)
@@ -67,7 +91,7 @@ class LoanController extends Controller
         }
 
         return response()->json([
-            'status' => 'success',
+            'status' => 'error',
             'message' => 'Endpoint ini hanya untuk admin.',
         ], 403);
     }

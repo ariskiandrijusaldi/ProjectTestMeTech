@@ -2,19 +2,22 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Resources\BookResource;
 use App\Models\Book;
 use App\Models\Category;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class BookController extends Controller
 {
     /**
-     * 1. Halaman Beranda: Dashboard summary (User, Total Barang, Barang Populer)
+     * 1. Halaman Beranda: Dashboard summary
      */
-    public function dashboard(Request $request)
+    public function dashboard(Request $request): JsonResponse
     {
-        $totalItems = Book::sum('stok');
-        
+        $user = $request->user();
+        $totalItems = Book::sum('stock_available');
+
         $popularItems = Book::with('category')
             ->withCount('loans')
             ->orderBy('loans_count', 'desc')
@@ -27,18 +30,18 @@ class BookController extends Controller
             'status' => 'success',
             'data' => [
                 'user' => [
-                    'name' => 'Aurelia',
-                    'greeting' => 'Semangat beraktivitas di kampus!'
+                    'name' => $user?->name ?? 'Mahasiswa',
+                    'greeting' => 'Semangat beraktivitas di kampus!',
                 ],
-                'total_barang' => $totalItems > 0 ? (int) $totalItems : 120,
-                'popular_items' => $popularItems,
-                'categories' => $categories
-            ]
+                'total_barang' => (int) $totalItems,
+                'popular_items' => BookResource::collection($popularItems),
+                'categories' => $categories,
+            ],
         ], 200);
     }
 
     /**
-     * 2. Halaman Beranda: Daftar Barang Populer
+     * 2. Halaman Beranda: Daftar Barang/Buku Populer
      */
     public function popular()
     {
@@ -48,69 +51,45 @@ class BookController extends Controller
             ->take(6)
             ->get();
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $books
-        ], 200);
+        return BookResource::collection($books);
     }
 
     /**
-     * 3. Halaman Daftar Barang: Pencarian & Filter Kategori
+     * 3. Halaman Daftar Buku: Pencarian (judul/penulis/isbn) & Filter Kategori (dengan pagination)
      */
     public function index(Request $request)
     {
-        $query = Book::with('category');
+        $books = Book::with('category')
+            ->search($request->query('search'))
+            ->when($request->filled('category_id') && ! in_array($request->category_id, ['all', '0', 'Semua'], true),
+                fn ($q) => $q->where('category_id', $request->category_id))
+            ->when($request->filled('category') && strtolower($request->category) !== 'semua', function ($q) use ($request) {
+                $categoryName = $request->category;
+                $q->whereHas('category', function ($sub) use ($categoryName) {
+                    $sub->where('name', 'like', "%{$categoryName}%")
+                        ->orWhere('slug', 'like', "%{$categoryName}%");
+                });
+            })
+            ->latest()
+            ->paginate($request->integer('per_page', 10));
 
-        // Filter berdasarkan kata kunci pencarian (judul / nama barang, deskripsi)
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('title', 'like', "%{$search}%")
-                  ->orWhere('description', 'like', "%{$search}%")
-                  ->orWhere('author', 'like', "%{$search}%");
-            });
-        }
-
-        // Filter berdasarkan ID kategori
-        if ($request->filled('category_id') && !in_array($request->category_id, ['all', '0', 'Semua'])) {
-            $query->where('category_id', $request->category_id);
-        }
-
-        // Filter berdasarkan nama kategori (contoh: "Elektronik", "Peralatan")
-        if ($request->filled('category') && strtolower($request->category) !== 'semua') {
-            $categoryName = $request->category;
-            $query->whereHas('category', function($q) use ($categoryName) {
-                $q->where('name', 'like', "%{$categoryName}%")
-                  ->orWhere('slug', 'like', "%{$categoryName}%");
-            });
-        }
-
-        $books = $query->latest()->get();
-
-        return response()->json([
-            'status' => 'success',
-            'total' => $books->count(),
-            'data' => $books
-        ], 200);
+        return BookResource::collection($books);
     }
 
     /**
-     * 4. Halaman Pengajuan Peminjaman: Detail Barang Berdasarkan ID
+     * 4. Halaman Pengajuan Peminjaman: Detail Buku Berdasarkan ID
      */
     public function show($id)
     {
         $book = Book::with('category')->find($id);
 
-        if (!$book) {
+        if (! $book) {
             return response()->json([
                 'status' => 'error',
-                'message' => 'Barang tidak ditemukan'
+                'message' => 'Buku tidak ditemukan.',
             ], 404);
         }
 
-        return response()->json([
-            'status' => 'success',
-            'data' => $book
-        ], 200);
+        return new BookResource($book);
     }
 }

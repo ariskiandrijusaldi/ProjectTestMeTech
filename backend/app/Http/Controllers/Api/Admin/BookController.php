@@ -89,9 +89,9 @@ class BookController extends Controller
     // DELETE /api/admin/books/{book}
     public function destroy(Book $book): JsonResponse
     {
-        if ($book->loans()->exists()) {
+        if ($book->loans()->whereIn('status', ['pending', 'approved'])->exists()) {
             return response()->json([
-                'message' => 'Buku memiliki riwayat peminjaman dan tidak bisa dihapus.',
+                'message' => 'Buku masih memiliki peminjaman aktif dan tidak bisa dihapus.',
             ], 422);
         }
 

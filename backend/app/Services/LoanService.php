@@ -52,6 +52,7 @@ class LoanService
                 'loan_code' => $code,
                 'quantity' => 1,
                 'status' => 'pending',
+                'requested_at' => Carbon::now(),
                 'loan_date' => Carbon::today(),
                 'due_date' => null,
                 'returned_at' => null,
