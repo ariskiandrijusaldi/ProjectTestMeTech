@@ -5,20 +5,19 @@ namespace App\Http\Controllers\Api\Admin;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\RejectLoanRequest;
 use App\Http\Resources\LoanResource;
-use App\Models\Book;
 use App\Models\Loan;
-use Illuminate\Http\JsonResponse;
+use App\Services\LoanService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 
 class LoanController extends Controller
 {
-    /**
-     * GET /api/admin/loans?status=pending|history|approved|rejected|returned|overdue&search=
-     *  - pending : tab "Menunggu"
-     *  - history : tab "Riwayat" (semua selain pending)
-     *  - approved: buku yang sedang dipinjam (untuk halaman pengembalian)
-     */
+    protected LoanService $loanService;
+
+    public function __construct(LoanService $loanService)
+    {
+        $this->loanService = $loanService;
+    }
+
     public function index(Request $request)
     {
         $status = $request->query('status', 'pending');
@@ -31,8 +30,10 @@ class LoanController extends Controller
             ->when($request->query('search'), function ($q, $term) {
                 $q->where(function ($w) use ($term) {
                     $w->where('code', 'like', "%{$term}%")
+                      ->orWhere('loan_code', 'like', "%{$term}%")
                       ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$term}%")
-                                                        ->orWhere('nim', 'like', "%{$term}%"))
+                                                            ->orWhere('nim', 'like', "%{$term}%")
+                                                            ->orWhere('email', 'like', "%{$term}%"))
                       ->orWhereHas('book', fn ($b) => $b->where('title', 'like', "%{$term}%"));
                 });
             })
@@ -41,105 +42,79 @@ class LoanController extends Controller
 
         return LoanResource::collection($loans)->additional([
             'meta_counts' => [
-                'pending' => Loan::where('status', 'pending')->count(), // angka "Menunggu (2)"
+                'pending' => Loan::where('status', 'pending')->count(),
             ],
         ]);
     }
 
-    // GET /api/admin/loans/{loan}
     public function show(Loan $loan): LoanResource
     {
         return new LoanResource($loan->load(['user', 'book', 'approver']));
     }
 
-    // PATCH /api/admin/loans/{loan}/approve
-    public function approve(Loan $loan)
+    public function loanByCode(string $code)
     {
-        return DB::transaction(function () use ($loan) {
-            $loan = Loan::lockForUpdate()->findOrFail($loan->id);
+        $loan = Loan::with(['user', 'book'])->where('code', $code)->first();
 
-            if ($loan->status !== 'pending') {
-                return response()->json(['message' => 'Pengajuan sudah diproses.'], 422);
-            }
-
-            $book = Book::lockForUpdate()->findOrFail($loan->book_id);
-
-            if ($book->stock_available < 1) {
-                return response()->json(['message' => 'Stok buku habis.'], 422);
-            }
-
-            $book->decrement('stock_available');
-
-            $loan->update([
-                'status'      => 'approved',
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
-                'due_date'    => today()->addDays((int) config('library.loan_days', 7)),
-            ]);
-
-            return (new LoanResource($loan->fresh(['user', 'book'])))
-                ->additional(['message' => 'Peminjaman disetujui.']);
-        });
-    }
-
-    // PATCH /api/admin/loans/{loan}/reject   body: {reason?}
-    public function reject(RejectLoanRequest $request, Loan $loan)
-    {
-        return DB::transaction(function () use ($request, $loan) {
-            $loan = Loan::lockForUpdate()->findOrFail($loan->id);
-
-            if ($loan->status !== 'pending') {
-                return response()->json(['message' => 'Pengajuan sudah diproses.'], 422);
-            }
-
-            $loan->update([
-                'status'          => 'rejected',
-                'approved_by'     => auth()->id(),
-                'approved_at'     => now(),
-                'rejected_reason' => $request->input('reason'),
-            ]);
-
-            return (new LoanResource($loan->fresh(['user', 'book'])))
-                ->additional(['message' => 'Peminjaman ditolak.']);
-        });
-    }
-
-    // PATCH /api/admin/loans/{loan}/return   (Konfirmasi Pengembalian)
-    public function returnBook(Loan $loan)
-    {
-        return DB::transaction(function () use ($loan) {
-            $loan = Loan::lockForUpdate()->findOrFail($loan->id);
-
-            if ($loan->status !== 'approved') {
-                return response()->json(['message' => 'Buku tidak sedang dipinjam.'], 422);
-            }
-
-            $fine = $loan->lateDays() * (float) config('library.fine_per_day', 1000);
-
-            $loan->update([
-                'status'      => 'returned',
-                'returned_at' => now(),
-                'fine_amount' => $fine,
-                'fine_paid'   => $fine == 0,
-            ]);
-
-            Book::whereKey($loan->book_id)->lockForUpdate()->first()?->increment('stock_available');
-
-            return (new LoanResource($loan->fresh(['user', 'book'])))
-                ->additional(['message' => 'Pengembalian berhasil dikonfirmasi.']);
-        });
-    }
-
-    // PATCH /api/admin/loans/{loan}/pay-fine   (tandai denda lunas)
-    public function payFine(Loan $loan)
-    {
-        if ($loan->status !== 'returned' || (float) $loan->fine_amount <= 0) {
-            return response()->json(['message' => 'Tidak ada denda yang perlu dilunasi.'], 422);
+        if (! $loan) {
+            return response()->json(['message' => 'Kode peminjaman tidak ditemukan.'], 404);
         }
 
-        $loan->update(['fine_paid' => true]);
+        return new LoanResource($loan->load(['approver']));
+    }
 
-        return (new LoanResource($loan->fresh(['user', 'book'])))
-            ->additional(['message' => 'Denda ditandai lunas.']);
+    public function overdue(Request $request)
+    {
+        $loans = Loan::with(['user', 'book'])->overdue()->latest('due_date')->paginate($request->integer('per_page', 10));
+
+        return LoanResource::collection($loans);
+    }
+
+    public function approve(Request $request, Loan $loan)
+    {
+        $result = $this->loanService->approveLoan((int) $loan->id, $request->user());
+
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
+
+        return (new LoanResource($result['loan']))
+            ->additional(['message' => $result['message']]);
+    }
+
+    public function reject(RejectLoanRequest $request, Loan $loan)
+    {
+        $result = $this->loanService->rejectLoan((int) $loan->id, $request->user(), $request->input('reason'));
+
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
+
+        return (new LoanResource($result['loan']))
+            ->additional(['message' => $result['message']]);
+    }
+
+    public function returnBook(Request $request, Loan $loan)
+    {
+        $result = $this->loanService->returnLoan((int) $loan->id, $request->user());
+
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
+
+        return (new LoanResource($result['loan']))
+            ->additional(['message' => $result['message']]);
+    }
+
+    public function payFine(Request $request, Loan $loan)
+    {
+        $result = $this->loanService->payFine((int) $loan->id, $request->user());
+
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
+
+        return (new LoanResource($result['loan']))
+            ->additional(['message' => $result['message']]);
     }
 }

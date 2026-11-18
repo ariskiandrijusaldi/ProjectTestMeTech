@@ -39,7 +39,9 @@ class AuthController extends Controller
 
     private function attempt(LoginRequest $request, ?string $role = null): JsonResponse
     {
-        $user = User::where('email', $request->email)->first();
+        $user = User::where('email', $request->email)
+            ->orWhere('nim', $request->email)
+            ->first();
 
         if (! $user || ! Hash::check($request->password, $user->password)) {
             throw ValidationException::withMessages([

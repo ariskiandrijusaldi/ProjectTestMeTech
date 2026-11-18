@@ -3,64 +3,59 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Book extends Model
 {
     protected $fillable = [
         'category_id',
+        'isbn',
         'title',
         'author',
-        'isbn',
-        'stok',
-        'description',
-        'image',
+        'publisher',
+        'year',
+        'synopsis',
+        'cover',
+        'rack_location',
+        'stock_total',
+        'stock_available',
+    ];
+
+    protected $casts = [
+        'stock_total' => 'integer',
+        'stock_available' => 'integer',
+        'year' => 'integer',
     ];
 
     protected $appends = [
-        'name',
-        'stock',
         'image_url',
         'is_available',
     ];
 
-    // Alias 'title' sebagai 'name' agar ramah untuk frontend
-    public function getNameAttribute()
-    {
-        return $this->title;
-    }
-
-    // Alias 'stok' sebagai 'stock'
-    public function getStockAttribute()
-    {
-        return (int) $this->stok;
-    }
-
-    // URL gambar lengkap atau placeholder
-    public function getImageUrlAttribute()
-    {
-        if (!empty($this->image)) {
-            if (str_starts_with($this->image, 'http://') || str_starts_with($this->image, 'https://')) {
-                return $this->image;
-            }
-            return url('storage/' . $this->image);
-        }
-
-        return 'https://placehold.co/400x300?text=' . urlencode($this->title ?? 'Barang');
-    }
-
-    // Status ketersediaan
-    public function getIsAvailableAttribute()
-    {
-        return $this->stok > 0;
-    }
-
-    public function category()
+    public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    public function loans()
+    public function loans(): HasMany
     {
         return $this->hasMany(Loan::class);
+    }
+
+    public function getImageUrlAttribute(): ?string
+    {
+        if (! empty($this->cover)) {
+            if (str_starts_with($this->cover, 'http://') || str_starts_with($this->cover, 'https://')) {
+                return $this->cover;
+            }
+            return url('storage/' . $this->cover);
+        }
+        return 'https://placehold.co/400x300?text=' . urlencode($this->title ?? 'Buku');
+    }
+
+    public function getIsAvailableAttribute(): bool
+    {
+        return (int) $this->stock_available > 0;
     }
 }

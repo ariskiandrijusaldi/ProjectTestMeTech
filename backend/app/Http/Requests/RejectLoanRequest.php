@@ -13,6 +13,6 @@ class RejectLoanRequest extends FormRequest
 
     public function rules(): array
     {
-        return ['reason' => ['nullable', 'string', 'max:255']];
+        return ['reason' => ['required', 'string', 'max:255']];
     }
 }

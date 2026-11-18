@@ -25,6 +25,7 @@ class BookResource extends JsonResource
             'rack_location'   => $this->rack_location,
             'stock_total'     => $this->stock_total,
             'stock_available' => $this->stock_available,
+            'is_available'    => $this->is_available,
         ];
     }
 }
