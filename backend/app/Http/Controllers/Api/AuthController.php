@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Requests\LoginRequest;
+use App\Http\Requests\RegisterRequest;
 use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
@@ -25,16 +26,45 @@ class AuthController extends Controller
         return $this->attempt($request, 'admin');
     }
 
+    /** Registrasi akun mahasiswa baru. */
+    public function register(RegisterRequest $request): JsonResponse
+    {
+        $data = $request->validated();
+
+        $user = User::create([
+            'name' => $data['name'],
+            'email' => $data['email'],
+            'nim' => $data['nim'],
+            'password' => Hash::make($data['password']),
+            'role' => 'mahasiswa',
+        ]);
+
+        $token = $user->createToken($request->input('device_name', 'mobile'), [$user->role])
+            ->plainTextToken;
+
+        return response()->json([
+            'message' => 'Registrasi berhasil.',
+            'data' => [
+                'token' => $token,
+                'token_type' => 'Bearer',
+                'user' => new UserResource($user),
+            ],
+        ], 201);
+    }
+
     public function logout(Request $request): JsonResponse
     {
-        $request->user()->currentAccessToken()->delete();
+        $request->user()->currentAccessToken()?->delete();
 
         return response()->json(['message' => 'Logout berhasil.']);
     }
 
-    public function me(Request $request): UserResource
+    public function me(Request $request): JsonResponse
     {
-        return new UserResource($request->user());
+        return response()->json([
+            'message' => 'Data pengguna berhasil diambil.',
+            'data' => new UserResource($request->user()),
+        ]);
     }
 
     private function attempt(LoginRequest $request, ?string $role = null): JsonResponse
@@ -57,10 +87,12 @@ class AuthController extends Controller
             ->plainTextToken;
 
         return response()->json([
-            'message'    => 'Login berhasil.',
-            'token'      => $token,
-            'token_type' => 'Bearer',
-            'user'       => new UserResource($user),
+            'message' => 'Login berhasil.',
+            'data' => [
+                'token' => $token,
+                'token_type' => 'Bearer',
+                'user' => new UserResource($user),
+            ],
         ]);
     }
 }

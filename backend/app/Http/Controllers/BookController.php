@@ -27,7 +27,7 @@ class BookController extends Controller
         $categories = Category::all();
 
         return response()->json([
-            'status' => 'success',
+            'message' => 'Ringkasan beranda berhasil diambil.',
             'data' => [
                 'user' => [
                     'name' => $user?->name ?? 'Mahasiswa',
@@ -51,7 +51,9 @@ class BookController extends Controller
             ->take(6)
             ->get();
 
-        return BookResource::collection($books);
+        return BookResource::collection($books)->additional([
+            'message' => 'Buku populer berhasil diambil.',
+        ]);
     }
 
     /**
@@ -66,14 +68,15 @@ class BookController extends Controller
             ->when($request->filled('category') && strtolower($request->category) !== 'semua', function ($q) use ($request) {
                 $categoryName = $request->category;
                 $q->whereHas('category', function ($sub) use ($categoryName) {
-                    $sub->where('name', 'like', "%{$categoryName}%")
-                        ->orWhere('slug', 'like', "%{$categoryName}%");
+                    $sub->where('name', 'like', "%{$categoryName}%");
                 });
             })
             ->latest()
-            ->paginate($request->integer('per_page', 10));
+            ->paginate(min(100, max(1, $request->integer('per_page', 10))));
 
-        return BookResource::collection($books);
+        return BookResource::collection($books)->additional([
+            'message' => 'Daftar buku berhasil diambil.',
+        ]);
     }
 
     /**
@@ -84,12 +87,10 @@ class BookController extends Controller
         $book = Book::with('category')->find($id);
 
         if (! $book) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Buku tidak ditemukan.',
-            ], 404);
+            return response()->json(['message' => 'Buku tidak ditemukan.'], 404);
         }
 
-        return new BookResource($book);
+        return (new BookResource($book))
+            ->additional(['message' => 'Detail buku berhasil diambil.']);
     }
 }

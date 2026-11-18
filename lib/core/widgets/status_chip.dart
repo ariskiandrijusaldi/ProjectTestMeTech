@@ -4,10 +4,13 @@ import '../theme/app_theme.dart';
 
 class StatusChip extends StatelessWidget {
   final LoanStatus status;
-  const StatusChip(this.status, {super.key});
+  final bool compact;
+
+  const StatusChip(this.status, {super.key, this.compact = false});
+  const StatusChip.named({super.key, required this.status, this.compact = false});
 
   static String labelOf(LoanStatus s) => switch (s) {
-        LoanStatus.pending => 'Menunggu Persetujuan',
+        LoanStatus.pending => 'Menunggu',
         LoanStatus.approved => 'Disetujui',
         LoanStatus.rejected => 'Ditolak',
         LoanStatus.returned => 'Dikembalikan',
@@ -22,11 +25,20 @@ class StatusChip extends StatelessWidget {
       LoanStatus.returned => (AppColors.approvedBg, AppColors.approvedFg),
     };
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 10,
+        vertical: compact ? 2 : 4,
+      ),
       decoration:
           BoxDecoration(color: bg, borderRadius: BorderRadius.circular(20)),
-      child: Text(labelOf(status),
-          style: TextStyle(color: fg, fontSize: 11, fontWeight: FontWeight.w600)),
+      child: Text(
+        labelOf(status),
+        style: TextStyle(
+          color: fg,
+          fontSize: compact ? 10 : 11,
+          fontWeight: FontWeight.w600,
+        ),
+      ),
     );
   }
 }

@@ -18,15 +18,16 @@ class DashboardController extends Controller
             ->get();
 
         return response()->json([
+            'message' => 'Ringkasan dashboard berhasil diambil.',
             'data' => [
-                'total_books'     => Book::count(),                         // jumlah judul
-                'total_stock'     => (int) Book::sum('stock_total'),        // jumlah eksemplar
+                'total_books' => Book::count(),                         // jumlah judul
+                'total_stock' => (int) Book::sum('stock_total'),        // jumlah eksemplar
                 'available_stock' => (int) Book::sum('stock_available'),
-                'total_loans'     => Loan::count(),
-                'pending_loans'   => Loan::where('status', 'pending')->count(),
-                'active_loans'    => Loan::where('status', 'approved')->count(),
-                'overdue_loans'   => Loan::overdue()->count(),
-                'latest_loans'    => LoanResource::collection($latest)->resolve(),
+                'total_loans' => Loan::count(),
+                'pending_loans' => Loan::where('status', 'pending')->count(),
+                'active_loans' => Loan::where('status', 'approved')->count(),
+                'overdue_loans' => Loan::overdue()->count(),
+                'latest_loans' => LoanResource::collection($latest)->resolve(),
             ],
         ]);
     }

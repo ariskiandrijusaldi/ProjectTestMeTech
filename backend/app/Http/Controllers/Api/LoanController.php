@@ -23,86 +23,65 @@ class LoanController extends Controller
     {
         $result = $this->loanService->requestLoan($request->user(), (int) $request->input('book_id'));
 
-        return response()->json([
-            'status' => $result['ok'] ? 'success' : 'error',
-            'message' => $result['message'],
-            'data' => $result['loan'] ? new LoanResource($result['loan']) : null,
-        ], $result['code']);
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
+        }
+
+        return (new LoanResource($result['loan']))
+            ->additional(['message' => $result['message']])
+            ->response()
+            ->setStatusCode($result['code']);
     }
 
     public function myLoans(Request $request)
     {
         $user = $request->user();
-        $tab = strtolower($request->query('tab') ?? $request->query('status') ?? 'all');
+        $tab = strtolower($request->query('tab') ?? 'all');
 
         $query = Loan::with(['book.category', 'approver'])
             ->where('user_id', $user->id)
             ->latest('requested_at');
 
-        if (in_array($tab, ['active', 'aktif'])) {
+        if (in_array($tab, ['active', 'aktif'], true)) {
             $query->whereIn('status', ['pending', 'approved']);
-        } elseif (in_array($tab, ['history', 'riwayat'])) {
+        } elseif (in_array($tab, ['history', 'riwayat'], true)) {
             $query->whereIn('status', ['rejected', 'returned']);
         } elseif ($request->filled('status') && ! in_array($request->status, ['all', 'Semua'], true)) {
             $query->where('status', $request->status);
         }
 
-        $loans = $query->paginate($request->integer('per_page', 10));
-        $loans->through(fn ($item) => new LoanResource($item));
+        $loans = $query->paginate(min(100, max(1, $request->integer('per_page', 10))));
 
-        return response()->json([
-            'status' => 'success',
+        return LoanResource::collection($loans)->additional([
+            'message' => 'Daftar peminjaman berhasil diambil.',
             'tab' => $tab,
-            'data' => $loans,
-        ], 200);
+        ]);
     }
 
-    public function show(Request $request, $id)
+    public function show(Request $request, int $id)
     {
         $loan = Loan::with(['book.category', 'approver', 'user'])->find($id);
 
         if (! $loan) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Peminjaman tidak ditemukan.',
-            ], 404);
+            return response()->json(['message' => 'Peminjaman tidak ditemukan.'], 404);
         }
 
         if ($loan->user_id !== $request->user()->id && ! $request->user()->isAdmin()) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Bukan peminjaman Anda.',
-            ], 403);
+            return response()->json(['message' => 'Peminjaman tidak ditemukan.'], 404);
         }
 
         return (new LoanResource($loan))
-            ->additional(['message' => 'Detail peminjaman ditemukan.']);
+            ->additional(['message' => 'Detail peminjaman berhasil diambil.']);
     }
 
-    public function updateStatus(Request $request, $id)
+    public function destroy(Request $request, int $id): JsonResponse
     {
-        $loan = Loan::findOrFail($id);
+        $result = $this->loanService->cancelOwnLoan($id, $request->user());
 
-        if ($loan->user_id !== $request->user()->id) {
-            return response()->json([
-                'status' => 'error',
-                'message' => 'Bukan peminjaman Anda.',
-            ], 403);
+        if (! $result['ok']) {
+            return response()->json(['message' => $result['message']], $result['code']);
         }
 
-        return response()->json([
-            'status' => 'error',
-            'message' => 'Endpoint ini hanya untuk admin.',
-        ], 403);
-    }
-
-    public function destroy(Request $request, $id)
-    {
-        $result = $this->loanService->cancelOwnLoan((int) $id, $request->user());
-
-        return response()->json([
-            'status' => $result['ok'] ? 'success' : 'error',
-            'message' => $result['message'],
-        ], $result['code']);
+        return response()->json(['message' => $result['message']]);
     }
 }

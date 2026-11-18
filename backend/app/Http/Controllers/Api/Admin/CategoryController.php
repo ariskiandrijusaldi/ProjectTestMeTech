@@ -3,44 +3,50 @@
 namespace App\Http\Controllers\Api\Admin;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\CategoryRequest;
 use App\Models\Category;
-use App\Models\User;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
     public function index(): JsonResponse
     {
-        return response()->json(['data' => Category::orderBy('name')->get(['id', 'name'])]);
+        return response()->json([
+            'message' => 'Daftar kategori berhasil diambil.',
+            'data' => Category::orderBy('name')->get(['id', 'name']),
+        ]);
     }
 
-    public function store(Request $request): JsonResponse
+    public function store(CategoryRequest $request): JsonResponse
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:100', 'unique:categories,name']]);
+        $category = Category::create($request->validated());
 
-        return response()->json(['message' => 'Kategori ditambahkan.', 'data' => Category::create($data)], 201);
+        return response()->json([
+            'message' => 'Kategori berhasil ditambahkan.',
+            'data' => $category->only(['id', 'name']),
+        ], 201);
     }
 
-    public function destroy(Request $request, Category $category): JsonResponse
+    public function update(CategoryRequest $request, Category $category): JsonResponse
+    {
+        $category->update($request->validated());
+
+        return response()->json([
+            'message' => 'Kategori berhasil diperbarui.',
+            'data' => $category->only(['id', 'name']),
+        ]);
+    }
+
+    public function destroy(Category $category): JsonResponse
     {
         if ($category->books()->exists()) {
             return response()->json([
-                'message' => 'Kategori masih dipakai oleh buku. Tidak bisa dihapus.',
+                'message' => 'Kategori masih dipakai oleh buku sehingga tidak bisa dihapus.',
             ], 422);
         }
 
         $category->delete();
 
         return response()->json(['message' => 'Kategori berhasil dihapus.']);
-    }
-
-    public function users(): JsonResponse
-    {
-        $users = User::where('role', 'mahasiswa')
-            ->orderBy('name')
-            ->get(['id', 'name', 'email', 'nim']);
-
-        return response()->json(['data' => $users]);
     }
 }

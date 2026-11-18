@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Carbon;
 
 class Loan extends Model
@@ -14,12 +13,9 @@ class Loan extends Model
         'approved_by',
         'book_id',
         'code',
-        'loan_code',
-        'quantity',
         'status',
         'requested_at',
         'approved_at',
-        'loan_date',
         'due_date',
         'returned_at',
         'fine_amount',
@@ -28,9 +24,7 @@ class Loan extends Model
     ];
 
     protected $casts = [
-        'quantity' => 'integer',
         'requested_at' => 'datetime',
-        'loan_date' => 'date',
         'due_date' => 'date',
         'returned_at' => 'datetime',
         'approved_at' => 'datetime',
@@ -80,6 +74,7 @@ class Loan extends Model
         if ($this->status === 'returned') {
             return $this->lateDays > 0;
         }
+
         return $this->due_date ? $this->due_date->isBefore(Carbon::today()) : false;
     }
 
@@ -91,6 +86,7 @@ class Loan extends Model
         $end = $this->returned_at ? Carbon::parse($this->returned_at) : Carbon::today();
         $due = Carbon::parse($this->due_date);
         $diff = $due->diffInDays($end);
+
         return $diff > 0 ? (int) $diff : 0;
     }
 

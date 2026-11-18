@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../models/book.dart';
+import '../theme/app_theme.dart';
+import 'category_icon.dart';
 
-// Sampul sementara. TODO: ganti dengan Image.asset / Image.network.
+// Sampul buku: tampilkan gambar dari coverUrl jika ada, fallback warna.
 class BookCover extends StatelessWidget {
   final Book book;
   final double width;
@@ -16,14 +18,39 @@ class BookCover extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: width,
-      height: height,
-      decoration: BoxDecoration(
-        color: book.color,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Icon(Icons.menu_book, color: Colors.white, size: width * 0.5),
-    );
+    final cover = book.coverUrl;
+    if (cover != null && cover.isNotEmpty && cover.startsWith('http')) {
+      return Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: AppColors.thumb,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Image.network(
+          cover,
+          fit: BoxFit.cover,
+          errorBuilder: (_, error, stackTrace) => _fallback,
+          loadingBuilder: (_, child, progress) =>
+              progress == null ? child : _fallback,
+        ),
+      );
+    }
+    return _fallback;
   }
+
+  Widget get _fallback => Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: book.color,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Icon(
+          categoryIcon(book.category),
+          color: Colors.white,
+          size: width * 0.5,
+        ),
+      );
 }

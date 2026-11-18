@@ -15,6 +15,8 @@ class AppColors {
   static const approvedFg = Color(0xFF1E8E3E);
   static const rejectedBg = Color(0xFFFDE2E2);
   static const rejectedFg = Color(0xFFD93025);
+
+  static const thumb = Color(0xFFF1F2F8);
 }
 
 class AppTheme {

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../core/api/api_service.dart';
 import 'models.dart';
 
 class AppColors {
@@ -74,6 +75,9 @@ String formatTanggalJam(DateTime d) {
   return '${formatTanggal(d)}, $h:$m';
 }
 
+String apiError(Object error) =>
+    error is ApiException ? error.message : 'Terjadi kesalahan. Coba lagi.';
+
 String formatRupiah(int n) {
   final s = n.toString();
   final b = StringBuffer();
@@ -141,7 +145,7 @@ class ItemThumb extends StatelessWidget {
           ? Image.network(
         cover.trim(),
         fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => fallback,
+        errorBuilder: (_, error, stackTrace) => fallback,
         loadingBuilder: (_, child, progress) =>
         progress == null ? child : fallback,
       )

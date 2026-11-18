@@ -49,9 +49,11 @@ class Book extends Model
             if (str_starts_with($this->cover, 'http://') || str_starts_with($this->cover, 'https://')) {
                 return $this->cover;
             }
-            return url('storage/' . $this->cover);
+
+            return url('storage/'.$this->cover);
         }
-        return 'https://placehold.co/400x300?text=' . urlencode($this->title ?? 'Buku');
+
+        return 'https://placehold.co/400x300?text='.urlencode($this->title ?? 'Buku');
     }
 
     public function getIsAvailableAttribute(): bool

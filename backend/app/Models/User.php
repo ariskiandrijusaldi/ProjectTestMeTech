@@ -15,7 +15,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected function casts(): array
     {
@@ -34,11 +34,6 @@ class User extends Authenticatable
     public function approvedLoans()
     {
         return $this->hasMany(Loan::class, 'approved_by');
-    }
-
-    public function tokens()
-    {
-        return $this->hasMany(\Laravel\Sanctum\PersonalAccessToken::class, 'tokenable_id');
     }
 
     public function isAdmin(): bool

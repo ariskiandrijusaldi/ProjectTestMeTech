@@ -1,76 +1,79 @@
 # Dokumentasi REST API Perpustakaan MeTech
 
-Base URL: `http://localhost:8000/api` (Web / Desktop) atau `http://10.0.2.2:8000/api` (Android Emulator)
+Base URL:
 
-Header Standar:
-- `Accept: application/json`
-- `Content-Type: application/json` (kecuali upload multipart form-data)
-- `Authorization: Bearer <token>` (untuk endpoint terproteksi)
+- Web / desktop / iOS simulator: `http://127.0.0.1:8000/api`
+- Android emulator: `http://10.0.2.2:8000/api`
+
+Header standar:
+
+```http
+Accept: application/json
+Content-Type: application/json
+Authorization: Bearer <token>
+```
+
+Untuk upload cover buku gunakan `multipart/form-data` dan kirim `_method=PUT` saat update.
+
+## Format Respons
+
+Respons sukses memakai envelope `message` + `data`. Endpoint list memakai format pagination Laravel (`data`, `links`, `meta`). Error validasi memakai HTTP 422:
+
+```json
+{
+  "message": "Data yang diberikan tidak valid.",
+  "errors": {
+    "email": ["Email atau password salah."]
+  }
+}
+```
+
+Kode error yang dipakai: `401` belum login/token tidak valid, `403` bukan admin, `404` data tidak ditemukan, `405` method salah, `422` validasi/aturan bisnis, `429` terlalu banyak request, `500` server error.
 
 ---
 
 ## 1. Autentikasi
 
 ### `POST /api/login`
-Login menggunakan email atau NIM + password.
 
-**Request Body:**
+Login memakai email atau NIM + password.
+
+Request:
+
 ```json
 {
-  "email": "2301001", // atau "aurelia@kampus.ac.id"
-  "password": "password123"
+  "email": "2301001",
+  "password": "password123",
+  "device_name": "flutter-mobile"
 }
 ```
 
-**Response Sukses (200 OK):**
+Response `200 OK`:
+
 ```json
 {
   "message": "Login berhasil.",
-  "token": "1|abcdef123456...",
-  "user": {
-    "id": 2,
-    "name": "Aurelia",
-    "email": "aurelia@kampus.ac.id",
-    "nim": "2301001",
-    "role": "mahasiswa"
+  "data": {
+    "token": "1|abcdef123456...",
+    "token_type": "Bearer",
+    "user": {
+      "id": 2,
+      "name": "Aurelia",
+      "email": "aurelia@kampus.ac.id",
+      "nim": "2301001",
+      "role": "mahasiswa"
+    }
   }
 }
 ```
-
-**Response Error (422 Unprocessable Entity):**
-```json
-{
-  "message": "Kredensial yang diberikan salah.",
-  "errors": {
-    "email": ["Email / NIM atau password salah."]
-  }
-}
-```
-
----
-
-### `POST /api/logout`
-Mencabut personal access token yang sedang aktif.
-
-**Headers:** `Authorization: Bearer <token>`
-
-**Response (200 OK):**
-```json
-{
-  "message": "Logout berhasil."
-}
-```
-
----
 
 ### `GET /api/me`
-Mendapatkan info user yang sedang login.
 
-**Headers:** `Authorization: Bearer <token>`
+Mengambil user yang sedang login. Memerlukan Bearer token.
 
-**Response (200 OK):**
 ```json
 {
+  "message": "Data pengguna berhasil diambil.",
   "data": {
     "id": 2,
     "name": "Aurelia",
@@ -81,33 +84,41 @@ Mendapatkan info user yang sedang login.
 }
 ```
 
----
+### `POST /api/logout`
 
-## 2. Mahasiswa / Publik
+Mencabut token yang sedang dipakai.
 
-### `GET /api/categories`
-Daftar seluruh kategori buku.
-
-**Response (200 OK):**
 ```json
 {
-  "status": "success",
-  "data": [
-    { "id": 1, "name": "Elektronik", "slug": "elektronik" },
-    { "id": 5, "name": "Teknologi", "slug": "teknologi" }
-  ]
+  "message": "Logout berhasil."
 }
 ```
 
 ---
 
-### `GET /api/books`
-Daftar buku dengan paginasi, pencarian, dan filter kategori.
-- Query params: `search` (judul/penulis/isbn), `category_id`, `page`, `per_page`
+## 2. Endpoint Publik / Mahasiswa
 
-**Response (200 OK):**
+### `GET /api/categories`
+
+Daftar kategori (tanpa slug).
+
 ```json
 {
+  "message": "Daftar kategori berhasil diambil.",
+  "data": [
+    { "id": 1, "name": "Elektronik" },
+    { "id": 5, "name": "Teknologi" }
+  ]
+}
+```
+
+### `GET /api/books/popular`
+
+Enam buku paling sering dipinjam.
+
+```json
+{
+  "message": "Buku populer berhasil diambil.",
   "data": [
     {
       "id": 11,
@@ -125,32 +136,50 @@ Daftar buku dengan paginasi, pencarian, dan filter kategori.
       "stock_available": 9,
       "is_available": true
     }
-  ],
-  "links": { "first": "...", "last": "...", "prev": null, "next": null },
-  "meta": { "current_page": 1, "from": 1, "last_page": 1, "per_page": 10, "total": 1 }
+  ]
 }
 ```
 
----
+### `GET /api/books`
 
-### `GET /api/books/{id}`
-Detail buku berdasarkan ID.
+Query params:
 
-**Response (200 OK):**
+- `search`: judul, penulis, atau ISBN
+- `category_id`: ID kategori
+- `category`: nama kategori (`Semua` untuk semua)
+- `page`: halaman, default `1`
+- `per_page`: `1..100`, default `10`
+
+Response memakai format pagination:
+
 ```json
 {
+  "message": "Daftar buku berhasil diambil.",
+  "data": [ ... ],
+  "links": { "first": "...", "last": "...", "prev": null, "next": null },
+  "meta": {
+    "current_page": 1,
+    "from": 1,
+    "last_page": 1,
+    "per_page": 100,
+    "total": 13
+  }
+}
+```
+
+### `GET /api/books/{id}`
+
+Detail satu buku. Response `404` jika tidak ada.
+
+```json
+{
+  "message": "Detail buku berhasil diambil.",
   "data": {
     "id": 11,
     "category_id": 5,
     "category": { "id": 5, "name": "Teknologi" },
-    "isbn": "978-1000000011",
     "title": "Pemrograman Flutter",
     "author": "Andi Wijaya",
-    "publisher": "Informatika",
-    "year": 2024,
-    "synopsis": "Panduan Flutter komprehensif...",
-    "cover_url": "http://localhost:8000/storage/covers/sample.jpg",
-    "rack_location": "Rak A-01",
     "stock_total": 10,
     "stock_available": 9,
     "is_available": true
@@ -158,126 +187,103 @@ Detail buku berdasarkan ID.
 }
 ```
 
----
-
 ### `POST /api/loans`
-Mengajukan peminjaman buku oleh mahasiswa.
 
-**Headers:** `Authorization: Bearer <token>`
-**Request Body:**
+Mengajukan peminjaman. Body hanya `book_id`; aturan bisnis dicek di server.
+
+Batas: maksimal 3 peminjaman aktif per mahasiswa. Buku harus tersedia.
+
 ```json
 {
   "book_id": 11
 }
 ```
 
-**Response Sukses (201 Created):**
+Response `201 Created`:
+
 ```json
 {
-  "status": "success",
   "message": "Pengajuan peminjaman berhasil diajukan.",
   "data": {
-    "id": 1,
-    "code": "PJ26111601",
+    "id": 6,
+    "code": "PJ26111801",
     "status": "pending",
     "status_label": "Menunggu",
-    "requested_at": "2026-11-16T14:00:00+07:00",
+    "requested_at": "2026-11-18T10:00:00+07:00",
+    "approved_at": null,
     "due_date": null,
     "returned_at": null,
+    "is_overdue": false,
+    "late_days": 0,
     "fine_amount": 0,
     "fine_paid": true,
-    "book": {
-      "id": 11,
-      "title": "Pemrograman Flutter"
-    }
+    "rejected_reason": null,
+    "book": { "id": 11, "title": "Pemrograman Flutter" }
   }
 }
 ```
-
----
 
 ### `GET /api/my-loans`
-Melihat daftar peminjaman milik mahasiswa yang sedang login.
-- Query params: `status` (pending, approved, returned, rejected), `tab` (active, history), `page`, `per_page`
 
-**Headers:** `Authorization: Bearer <token>`
+Daftar peminjaman milik user yang login. `data` berupa list (bukan nested pagination).
 
-**Response (200 OK):**
+Query params:
+
+- `tab`: `active`, `history`, atau `all`
+- `status`: `pending`, `approved`, `rejected`, `returned`, atau `all`
+- `page`, `per_page` (`1..100`, default `10`)
+
+`active` berisi `pending` + `approved`; `history` berisi `rejected` + `returned`.
+
 ```json
 {
-  "status": "success",
-  "tab": "all",
-  "data": {
-    "current_page": 1,
-    "data": [
-      {
-        "id": 1,
-        "code": "PJ26111601",
-        "status": "pending",
-        "status_label": "Menunggu",
-        "requested_at": "2026-11-16T14:00:00+07:00",
-        "due_date": null,
-        "returned_at": null,
-        "is_overdue": false,
-        "late_days": 0,
-        "fine_amount": 0,
-        "fine_paid": true,
-        "book": { ... }
-      }
-    ],
-    "total": 1
-  }
+  "message": "Daftar peminjaman berhasil diambil.",
+  "data": [
+    {
+      "id": 6,
+      "code": "PJ26111801",
+      "status": "pending",
+      "status_label": "Menunggu",
+      "requested_at": "2026-11-18T10:00:00+07:00",
+      "due_date": null,
+      "is_overdue": false,
+      "late_days": 0,
+      "fine_amount": 0,
+      "fine_paid": true,
+      "book": { ... }
+    }
+  ],
+  "links": { ... },
+  "meta": { "current_page": 1, "last_page": 1, "per_page": 100, "total": 1 },
+  "tab": "active"
 }
 ```
-
----
 
 ### `GET /api/my-loans/{id}`
-Melihat detail peminjaman milik sendiri berdasarkan ID.
 
-**Headers:** `Authorization: Bearer <token>`
-
-**Response (200 OK):**
-```json
-{
-  "data": {
-    "id": 1,
-    "code": "PJ26111601",
-    "status": "pending",
-    "status_label": "Menunggu",
-    "requested_at": "2026-11-16T14:00:00+07:00",
-    "due_date": null,
-    "book": { ... }
-  },
-  "message": "Detail peminjaman ditemukan."
-}
-```
-
----
+Detail peminjaman milik sendiri. Peminjaman milik user lain menghasilkan `404`.
 
 ### `DELETE /api/my-loans/{id}`
-Membatalkan pengajuan peminjaman (hanya selama status masih `pending`).
 
-**Headers:** `Authorization: Bearer <token>`
+Membatalkan pengajuan selama status masih `pending`.
 
-**Response (200 OK):**
 ```json
 {
-  "status": "success",
   "message": "Pengajuan peminjaman dibatalkan."
 }
 ```
 
 ---
 
-## 3. Admin (Prefix: `/api/admin/*`, Wajib Role `admin`)
+## 3. Admin
+
+Semua endpoint di bawah memerlukan Bearer token dengan role `admin`, prefix `/api/admin`.
 
 ### `GET /api/admin/dashboard`
-Ringkasan statistik peminjaman dan buku untuk dashboard admin.
 
-**Response (200 OK):**
 ```json
 {
+  "message": "Ringkasan dashboard berhasil diambil.",
   "data": {
     "total_books": 13,
     "total_stock": 140,
@@ -291,140 +297,110 @@ Ringkasan statistik peminjaman dan buku untuk dashboard admin.
 }
 ```
 
----
-
 ### `GET /api/admin/loans`
-Daftar seluruh peminjaman dengan filter status dan pencarian kode/NIM/nama/judul buku.
 
-**Response (200 OK):**
+Query params:
+
+- `status`: `all` (default), `pending`, `approved`, `rejected`, `returned`, `history`, `overdue`
+- `search`: kode, nama/NIM/email peminjam, atau judul buku
+- `page`, `per_page` (`1..100`, default `10`)
+
+`history` berarti semua status selain `pending`.
+
 ```json
 {
+  "message": "Daftar peminjaman berhasil diambil.",
   "data": [ ... ],
   "links": { ... },
-  "meta": { "total": 5 },
-  "meta_counts": { "pending": 1 }
-}
-```
-
----
-
-### `GET /api/admin/loans/code/{code}`
-Mencari peminjaman via kode unik (contoh: `PJ25111601`).
-
-**Response (200 OK):**
-```json
-{
-  "data": {
-    "id": 1,
-    "code": "PJ25111601",
-    "status": "pending",
-    "status_label": "Menunggu",
-    "user": { "id": 2, "name": "Aurelia", "nim": "2301001" },
-    "book": { "id": 1, "title": "Proyektor" }
+  "meta": { ... },
+  "meta_counts": {
+    "pending": 1,
+    "approved": 2,
+    "overdue": 1
   }
 }
 ```
 
----
+### `GET /api/admin/loans/overdue`
+
+Daftar peminjaman `approved` yang sudah melewati `due_date`.
+
+### `GET /api/admin/loans/code/{code}`
+
+Cari peminjaman berdasarkan kode, contoh `PJ26111801`. Pencarian tidak case-sensitive dan kode di-trim.
+
+### `GET /api/admin/loans/{id}`
+
+Detail peminjaman untuk admin.
 
 ### `PATCH /api/admin/loans/{id}/approve`
-Menyetujui peminjaman (status menjadi `approved`, jatuh tempo +7 hari, stok berkurang 1).
 
-**Response (200 OK):**
-```json
-{
-  "data": {
-    "id": 1,
-    "status": "approved",
-    "status_label": "Disetujui",
-    "approved_at": "2026-11-16T14:10:00+07:00",
-    "due_date": "2026-11-23"
-  },
-  "message": "Peminjaman disetujui."
-}
-```
+Menyetujui peminjaman:
 
----
+- status menjadi `approved`
+- `approved_at` diisi
+- `due_date` = hari ini + 7 hari
+- `stock_available` berkurang 1
 
 ### `PATCH /api/admin/loans/{id}/reject`
-Menolak pengajuan peminjaman (stok tidak berubah).
 
-**Request Body:**
+Body:
+
 ```json
 {
-  "reason": "Stok buku sedang dalam perbaikan fisik."
+  "reason": "Buku sedang dalam perbaikan fisik."
 }
 ```
 
-**Response (200 OK):**
-```json
-{
-  "data": {
-    "id": 1,
-    "status": "rejected",
-    "status_label": "Ditolak",
-    "rejected_reason": "Stok buku sedang dalam perbaikan fisik."
-  },
-  "message": "Peminjaman ditolak."
-}
-```
-
----
+Status menjadi `rejected`; stok tidak berubah.
 
 ### `PATCH /api/admin/loans/{id}/return`
-Mengonfirmasi pengembalian buku (stok bertambah 1, hitung denda otomatis jika telat).
 
-**Response (200 OK):**
-```json
-{
-  "data": {
-    "id": 3,
-    "status": "returned",
-    "status_label": "Dikembalikan",
-    "returned_at": "2026-11-16T14:15:00+07:00",
-    "late_days": 3,
-    "fine_amount": 3000,
-    "fine_paid": false
-  },
-  "message": "Pengembalian berhasil dikonfirmasi."
-}
-```
+Mengembalikan buku:
 
----
+- status menjadi `returned`
+- `returned_at` diisi
+- stok bertambah 1
+- denda dihitung `hari_terlambat × Rp1.000`
+
+Response `LoanResource` berisi `late_days`, `fine_amount`, dan `fine_paid`.
 
 ### `PATCH /api/admin/loans/{id}/pay-fine`
-Menandai denda peminjaman sudah lunas.
 
-**Response (200 OK):**
+Menandai denda sudah lunas. Ditolak jika belum dikembalikan atau sudah lunas.
+
+### CRUD Buku
+
+- `GET /api/admin/books`: list + pagination, query `search`, `category_id`, `page`, `per_page`
+- `GET /api/admin/books/{id}`: detail
+- `POST /api/admin/books`: tambah buku (`multipart/form-data` bila upload cover)
+- `PUT /api/admin/books/{id}`: update buku (`_method=PUT` untuk multipart)
+- `DELETE /api/admin/books/{id}`: hapus buku; ditolak jika masih punya peminjaman aktif
+
+Field buku: `category_id`, `isbn`, `title`, `author`, `publisher`, `year`, `synopsis`, `rack_location`, `stock_total`, `cover`.
+
+### CRUD Kategori
+
+- `GET /api/admin/categories`
+- `POST /api/admin/categories` body `{ "name": "Ekonomi" }`
+- `PUT /api/admin/categories/{id}` body `{ "name": "Ekonomi Terapan" }`
+- `DELETE /api/admin/categories/{id}`; ditolak `422` jika masih dipakai buku
+
+### `GET /api/admin/users`
+
+Daftar mahasiswa. Query `search` untuk nama/NIM/email.
+
 ```json
 {
-  "data": {
-    "id": 3,
-    "fine_amount": 3000,
-    "fine_paid": true
-  },
-  "message": "Denda ditandai lunas."
+  "message": "Daftar mahasiswa berhasil diambil.",
+  "data": [
+    {
+      "id": 2,
+      "name": "Aurelia",
+      "email": "aurelia@kampus.ac.id",
+      "nim": "2301001",
+      "role": "mahasiswa"
+    }
+  ]
 }
 ```
-
----
-
-### `GET /api/admin/loans/overdue`
-Daftar seluruh peminjaman yang aktif namun sudah melewati batas tanggal jatuh tempo.
-
----
-
-### `CRUD /api/admin/books`
-- `GET /api/admin/books`: Paginated list buku dengan search & category_id
-- `GET /api/admin/books/{id}`: Detail buku
-- `POST /api/admin/books`: Tambah buku (multipart/form-data jika ada gambar cover)
-- `PUT /api/admin/books/{id}`: Update buku (gunakan field `_method=PUT` jika form-data)
-- `DELETE /api/admin/books/{id}`: Hapus buku (ditolak jika memiliki peminjaman aktif)
-
----
-
-### `CRUD /api/admin/categories`
-- `GET /api/admin/categories`: Daftar kategori
-- `POST /api/admin/categories`: Tambah kategori (`{"name": "Ekonomi"}`)
-- `DELETE /api/admin/categories/{id}`: Hapus kategori (ditolak jika masih punya buku)
-- `GET /api/admin/users`: Daftar mahasiswa perpustakaan

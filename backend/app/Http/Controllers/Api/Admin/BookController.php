@@ -20,15 +20,18 @@ class BookController extends Controller
             ->search($request->query('search'))
             ->when($request->query('category_id'), fn ($q, $id) => $q->where('category_id', $id))
             ->orderBy('title')
-            ->paginate($request->integer('per_page', 10));
+            ->paginate(min(100, max(1, $request->integer('per_page', 10))));
 
-        return BookResource::collection($books);
+        return BookResource::collection($books)->additional([
+            'message' => 'Daftar buku berhasil diambil.',
+        ]);
     }
 
     // GET /api/admin/books/{book}
-    public function show(Book $book): BookResource
+    public function show(Book $book)
     {
-        return new BookResource($book->load('category'));
+        return (new BookResource($book->load('category')))
+            ->additional(['message' => 'Detail buku berhasil diambil.']);
     }
 
     // POST /api/admin/books  (multipart/form-data kalau ada cover)

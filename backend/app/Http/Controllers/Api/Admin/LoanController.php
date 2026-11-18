@@ -20,9 +20,9 @@ class LoanController extends Controller
 
     public function index(Request $request)
     {
-        $status = $request->query('status', 'pending');
+        $status = $request->query('status', 'all');
 
-        $loans = Loan::with(['user', 'book'])
+        $loans = Loan::with(['user', 'book', 'approver'])
             ->when($status === 'history', fn ($q) => $q->where('status', '!=', 'pending'))
             ->when($status === 'overdue', fn ($q) => $q->overdue())
             ->when(in_array($status, ['pending', 'approved', 'rejected', 'returned'], true),
@@ -30,44 +30,55 @@ class LoanController extends Controller
             ->when($request->query('search'), function ($q, $term) {
                 $q->where(function ($w) use ($term) {
                     $w->where('code', 'like', "%{$term}%")
-                      ->orWhere('loan_code', 'like', "%{$term}%")
-                      ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$term}%")
-                                                            ->orWhere('nim', 'like', "%{$term}%")
-                                                            ->orWhere('email', 'like', "%{$term}%"))
-                      ->orWhereHas('book', fn ($b) => $b->where('title', 'like', "%{$term}%"));
+                        ->orWhereHas('user', fn ($u) => $u->where('name', 'like', "%{$term}%")
+                            ->orWhere('nim', 'like', "%{$term}%")
+                            ->orWhere('email', 'like', "%{$term}%"))
+                        ->orWhereHas('book', fn ($b) => $b->where('title', 'like', "%{$term}%"));
                 });
             })
             ->latest('requested_at')
-            ->paginate($request->integer('per_page', 10));
+            ->paginate(min(100, max(1, $request->integer('per_page', 10))));
 
         return LoanResource::collection($loans)->additional([
+            'message' => 'Daftar peminjaman berhasil diambil.',
             'meta_counts' => [
                 'pending' => Loan::where('status', 'pending')->count(),
+                'approved' => Loan::where('status', 'approved')->count(),
+                'overdue' => Loan::overdue()->count(),
             ],
         ]);
     }
 
-    public function show(Loan $loan): LoanResource
+    public function show(Loan $loan)
     {
-        return new LoanResource($loan->load(['user', 'book', 'approver']));
+        return (new LoanResource($loan->load(['user', 'book', 'approver'])))
+            ->additional(['message' => 'Detail peminjaman berhasil diambil.']);
     }
 
     public function loanByCode(string $code)
     {
-        $loan = Loan::with(['user', 'book'])->where('code', $code)->first();
+        $loan = Loan::with(['user', 'book', 'approver'])
+            ->where('code', strtoupper(trim($code)))
+            ->first();
 
         if (! $loan) {
             return response()->json(['message' => 'Kode peminjaman tidak ditemukan.'], 404);
         }
 
-        return new LoanResource($loan->load(['approver']));
+        return (new LoanResource($loan))
+            ->additional(['message' => 'Detail peminjaman berhasil diambil.']);
     }
 
     public function overdue(Request $request)
     {
-        $loans = Loan::with(['user', 'book'])->overdue()->latest('due_date')->paginate($request->integer('per_page', 10));
+        $loans = Loan::with(['user', 'book'])
+            ->overdue()
+            ->latest('due_date')
+            ->paginate(min(100, max(1, $request->integer('per_page', 10))));
 
-        return LoanResource::collection($loans);
+        return LoanResource::collection($loans)->additional([
+            'message' => 'Daftar peminjaman terlambat berhasil diambil.',
+        ]);
     }
 
     public function approve(Request $request, Loan $loan)
